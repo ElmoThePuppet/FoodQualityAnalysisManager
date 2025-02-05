@@ -1,0 +1,59 @@
+version: '3.8'
+
+networks:
+  foodQualityNetwork:
+
+services:
+  rabbitmq:
+    image: "rabbitmq:management"
+    container_name: rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    networks:
+      - foodQualityNetwork
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      retries: 5
+      start_period: 10s
+      timeout: 10s
+
+  sqlserver:
+    image: "mcr.microsoft.com/mssql/server:2022-latest"
+    container_name: "sqlserver"
+    environment:
+      - "ACCEPT_EULA=Y"
+      - "MSSQL_SA_PASSWORD=password1#"
+    ports:
+      - "1433:1433"
+    networks:
+      - foodQualityNetwork
+
+  foodquality:
+    build:
+      context: ./
+      dockerfile: QualityManager/Dockerfile
+    container_name: foodquality
+    ports:
+      - "8080:80"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - DB_HOST=sqlserver
+      - DB_NAME=FoodQualityService
+      - DB_SA_PASSWORD=password1#
+    networks:
+      - foodQualityNetwork
+
+  analysisengine:
+    build:
+      context: ./
+      dockerfile: AnalysisEngine/Dockerfile
+    container_name: analysisengine
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - foodQualityNetwork
